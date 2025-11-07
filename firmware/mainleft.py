@@ -81,13 +81,21 @@ class LeftKeyboardSide:
 
     def main_loop(self) -> None:
         print('start main loop')
+        i = 0
         while True:
-            self._read_devices()
+            try:
+                if i % 500 == 0:
+                    print(i)
+                self._read_devices()
 
-            for queue_item in self._read_queue_items():
-                self._process_queue_item(queue_item)
+                for queue_item in self._read_queue_items():
+                    self._process_queue_item(queue_item)
 
-            time.sleep(0.001)
+                time.sleep(0.001)
+            except Exception as err:
+                print(f'ERROR : {err}')
+                time.sleep(0.5)
+            i += 1
 
     def _read_devices(self) -> None:
         t = time.monotonic() * 1000
