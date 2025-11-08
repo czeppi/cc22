@@ -12,6 +12,7 @@ import time
 import board
 import usb_hid
 from digitalio import DigitalInOut, Direction, Pull
+import rotaryio
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.mouse import Mouse
 
@@ -44,6 +45,26 @@ def main():
     left_kbd.main_loop()
 
 
+class RollerEncoder:
+
+    def __init__(self, pin1, pin2):
+        self._encoder = rotaryio.IncrementalEncoder(pin1, pin2)
+        self._last_pos = None
+
+    def update(self) -> int:
+        pos = self._encoder.position
+        if self._last_pos is None:
+            self._last_pos = pos
+            return 0
+
+        if pos == self._last_pos:
+            return 0
+
+        offset = pos - self._last_pos
+        self._last_pos = pos
+        return offset
+
+
 class LeftKeyboardSide:
     _BUTTON_MAP = {
         LEFT_INDEX_RIGHT: board.GP2,  # blue
@@ -58,9 +79,12 @@ class LeftKeyboardSide:
         LEFT_THUMB_DOWN: board.GP21,  # red
         LEFT_THUMB_UP: board.GP20,  # yellowu
     }
+    _ROTARY_PIN1 = board.GP16
+    _ROTARY_PIN2 = board.GP17
 
     def __init__(self):
         self._uart = LeftUart(tx=LEFT_TX, rx=LEFT_RX)
+        self._roller_encoder = RollerEncoder(self._ROTARY_PIN1, self._ROTARY_PIN2)
         self._buttons = [Button(pkey_serial=pkey_serial, gp_pin=gp_pin) for pkey_serial, gp_pin in self._BUTTON_MAP.items()]
         self._kbd_half = KeyboardHalf(key_groups=[KeyGroup(group_serial, group_data)
                                                   for group_serial, group_data in LEFT_KEY_GROUPS.items()])
@@ -103,6 +127,10 @@ class LeftKeyboardSide:
         #print(f'_read_devices: t={t}')
         my_pressed_pkeys = self._get_pressed_pkeys()
 
+        encoder_offset = self._roller_encoder.update()
+        if encoder_offset != 0:
+            print(f'encoder_offset={encoder_offset}')
+
         mouse_dx = mouse_dy = 0
         other_vkey_events: list[VKeyPressEvent] = []
         for uart_item in self._uart.read_items():
@@ -115,6 +143,7 @@ class LeftKeyboardSide:
                 other_vkey_events.append(vkey_evt)
 
         queue_item = QueueItem(time=t, mouse_move=MouseMove(dx=mouse_dx, dy=mouse_dy),
+                               encoder_offset=encoder_offset,
                                my_pressed_pkeys=my_pressed_pkeys,
                                other_vkey_events=other_vkey_events)
         #print(f'read_devices: {queue_item}')
@@ -132,6 +161,12 @@ class LeftKeyboardSide:
         mouse_dy = queue_item.mouse_move.dy
         if mouse_dx != 0 or mouse_dy != 0:
             self._mouse_device.move(mouse_dx, mouse_dy)
+
+        if queue_item.encoder_offset != 0:
+            print(f'mouse wheel: {queue_item.encoder_offset}')
+            self._mouse_device.move(wheel=queue_item.encoder_offset)
+
+        #self._mouse_device.click(Mouse.LEFT_BUTTON)
 
         my_vkey_events = list(self._kbd_half.update(time=queue_item.time,
                                                     cur_pressed_pkeys=queue_item.my_pressed_pkeys))
@@ -159,11 +194,12 @@ class LeftKeyboardSide:
 
 class QueueItem:
 
-    def __init__(self, time: TimeInMs, mouse_move: MouseMove,
+    def __init__(self, time: TimeInMs, mouse_move: MouseMove, encoder_offset: int,
                  my_pressed_pkeys: set[PhysicalKeySerial], other_vkey_events: list[VKeyPressEvent]):
         # public
         self.time = time
         self.mouse_move = mouse_move
+        self.encoder_offset = encoder_offset
         self.my_pressed_pkeys = my_pressed_pkeys
         self.other_vkey_events = other_vkey_events
 
