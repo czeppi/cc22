@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+from base import KeyCode
+
+
+class KeyCmdKind:  # enum
+    KEY_RELEASE = 0
+    KEY_PRESS = 1
+    KEY_SEND = 2
+
+
+KeyCmdKindValue = int
+
+
+class ReactionCmd:
+
+    def __ne__(self, other: ReactionCmd) -> bool:
+        return not self == other
+
+    def __repr__(self):
+        return str(self)
+
+
+class KeyCmd(ReactionCmd):
+
+    def __init__(self, kind: KeyCmdKindValue, key_code: KeyCode):
+        self.kind = kind
+        self.key_code = key_code
+
+    def __str__(self) -> str:
+        if self.kind == KeyCmdKind.KEY_PRESS:
+            return f'press({self.key_code})'
+        elif self.kind == KeyCmdKind.KEY_RELEASE:
+            return f'release({self.key_code})'
+        else:
+            return f'???({self.key_code})'
+
+    def __eq__(self, other: ReactionCmd) -> bool:
+        return isinstance(other, KeyCmd) and self.kind == other.kind and self.key_code == other.key_code
+
+
+class MouseButtonCmd(ReactionCmd):
+
+    def __init__(self, button_no: int):
+        self.button_no = button_no
+
+    def __str__(self) -> str:
+        return f'mouse press({self.button_no})'
+
+    def __eq__(self, other: ReactionCmd) -> bool:
+        return isinstance(other, MouseButtonCmd) and self.button_no == other.button_no
+
+
+class MouseWheelCmd(ReactionCmd):
+
+    def __init__(self, offset: int):
+        self.offset = offset
+
+    def __str__(self) -> str:
+        return f'mouse wheel({self.offset})'
+
+    def __eq__(self, other: ReactionCmd) -> bool:
+        return isinstance(other, MouseWheelCmd) and self.offset == other.offset
+
+
+ReactionCommands = list  # list[ReactionCmd]
+
+
+class OneKeyReactions:  # KeySetting?
+
+    def __init__(self, on_press_key_reaction_commands: ReactionCommands,
+                 on_release_key_reaction_commands: ReactionCommands):
+        self.on_press_key_reaction_commands = on_press_key_reaction_commands
+        self.on_release_key_reaction_commands = on_release_key_reaction_commands

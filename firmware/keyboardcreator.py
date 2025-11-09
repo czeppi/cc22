@@ -1,6 +1,7 @@
 from base import KeyCode, VirtualKeySerial
 from keysdata import NO_KEY
-from virtualkeyboard import KeyReaction, KeyCmd, KeyCmdKind, SimpleKey, ModKey, LayerKey, VirtualKeyboard
+from virtualkeyboard import SimpleKey, ModKey, LayerKey, VirtualKeyboard
+from reactions import KeyCmdKind, KeyCmd, OneKeyReactions, MouseButtonCmd, MouseWheelCmd
 
 try:
     from typing import Callable, Iterator
@@ -8,6 +9,7 @@ except ImportError:
     pass
 
 from adafruit_hid.keycode import Keycode as KC
+from adafruit_hid.mouse import Mouse
 
 MacroName = str  # p.e. 'M3'
 MacroDescription = str
@@ -16,7 +18,7 @@ ReactionName = str  # p.e. 'a', '$', 'M5'
 
 
 KEYCODES_DATA = [
-    # function row
+    # function row on std keyboard
     [KC.ESCAPE, 'esc', '', 'esc', ''],
     [KC.F1, 'F1', '', 'F1', ''],
     [KC.F2, 'F2', '', 'F2', ''],
@@ -31,7 +33,7 @@ KEYCODES_DATA = [
     [KC.F11, 'F11', '', 'F11', ''],
     [KC.F12, 'F12', '', 'F12', ''],
 
-    # row 1
+    # row 1 on std keyboard
     [KC.GRAVE_ACCENT, '`', '~', '^', '°'],
     [KC.ONE, '1', '!', '1', '!'],
     [KC.TWO, '2', '@', '2', '"'],
@@ -47,21 +49,21 @@ KEYCODES_DATA = [
     [KC.EQUALS, '=', '+', '´', '`'],
     [KC.BACKSPACE, 'Backspace', '', 'Backspace', ''],
 
-    # row 2
+    # row 2 on std keyboard
     [KC.TAB, 'Tab', 'BackTab', 'Tab', 'BackTab'],
     # q ... p
     [KC.LEFT_BRACKET, '[', '{', 'ü', 'Ü'],
     [KC.RIGHT_BRACKET, ']', '}', '+', '*', '~'],
     [KC.ENTER, 'Enter', '', 'Enter', ''],
 
-    # row 3
+    # row 3 on std keyboard
     [KC.CAPS_LOCK, 'CapsLock', '', 'CapsLock', ''],
     # a ... l
     [KC.SEMICOLON, ';', ':', 'ö', 'Ö'],
     [KC.QUOTE, "'", '"', 'ä', 'Ä'],
     [KC.POUND, '#', '~', '#', "'"],
 
-    # row 4
+    # row 4 on std keyboard
     [KC.LEFT_SHIFT, 'LShift', '', 'LShift', ''],
     [KC.BACKSLASH, '\\', '|', '<', '>', '|'],
     # y ... m
@@ -70,7 +72,7 @@ KEYCODES_DATA = [
     [KC.FORWARD_SLASH, '/', '?', '-', '_'],
     [KC.RIGHT_SHIFT, 'RShift', '', 'RShift', ''],
 
-    # row 5
+    # row 5 on std keyboard
     [KC.LEFT_CONTROL, 'LCtrl', '', 'LCtrl', ''],
     [KC.LEFT_GUI, 'LGui', '', 'LGui', ''],
     [KC.LEFT_ALT, 'LAlt', '', 'LAlt', ''],
@@ -79,54 +81,54 @@ KEYCODES_DATA = [
     [KC.RIGHT_GUI, 'RGui', '', 'RGui', ''],
     [KC.APPLICATION, 'Menu', '', 'Menu', ''],
 
-    # cursor row 1
+    # cursor row 1 on std keyboard
     [KC.INSERT, 'Insert', '', 'Insert', ''],
     [KC.HOME, 'Home', '', 'Home', ''],
     [KC.PAGE_UP, 'PageUp', '', 'PageUp', ''],
 
-    # cursor row 2
+    # cursor row 2 on std keyboard
     [KC.DELETE, 'Del', '', 'Del', ''],
     [KC.END, 'End', '', 'End', ''],
     [KC.PAGE_DOWN, 'PageDown', '', 'PageDown', ''],
 
-    # cursor row 3
+    # cursor row 3 on std keyboard
     [KC.UP_ARROW, 'Up', '', 'Up', ''],
 
-    # cursor row 4
+    # cursor row 4 on std keyboard
     [KC.LEFT_ARROW, 'Left', '', 'Left', ''],
     [KC.DOWN_ARROW, 'Down', '', 'Down', ''],
     [KC.RIGHT_ARROW, 'Right', '', 'Right', ''],
 
-    # keypad row 1
+    # keypad row 1 on std keyboard
     [KC.KEYPAD_NUMLOCK, 'KpNumLock', '', 'KpNumLock', ''],
     [KC.KEYPAD_FORWARD_SLASH, 'Kp/', '', 'Kp/', ''],
     [KC.KEYPAD_ASTERISK, 'Kp*', '', 'Kp*', ''],
     [KC.KEYPAD_MINUS, 'Kp', '', 'Kp', ''],
 
-    # keypad row 2
+    # keypad row 2 on std keyboard
     [KC.KEYPAD_SEVEN, 'Kp7', '', 'Kp7', ''],
     [KC.KEYPAD_EIGHT, 'Kp8', '', 'Kp8', ''],
     [KC.KEYPAD_NINE, 'Kp9', '', 'Kp9', ''],
     [KC.KEYPAD_PLUS, 'Kp+', '', 'Kp+', ''],
 
-    # keypad row 3
+    # keypad row 3 on std keyboard
     [KC.KEYPAD_FOUR, 'Kp4', '', 'Kp4', ''],
     [KC.KEYPAD_FIVE, 'Kp5', '', 'Kp5', ''],
     [KC.KEYPAD_SIX, 'Kp6', '', 'Kp6', ''],
 
-    # keypad row 4
+    # keypad row 4 on std keyboard
     [KC.KEYPAD_ONE, 'Kp1', '', 'Kp1', ''],
     [KC.KEYPAD_TWO, 'Kp2', '', 'Kp2', ''],
     [KC.KEYPAD_THREE, 'Kp3', '', 'Kp3', ''],
     [KC.KEYPAD_ENTER, 'KpEnter', '', 'KpEnter', ''],
 
-    # keypad row 5
+    # keypad row 5 on std keyboard
     [KC.KEYPAD_ZERO, 'Kp0', 'KpInsert', 'Kp0', 'KpInsert'],
     [KC.KEYPAD_PERIOD, 'Kp.', 'KpDel', '', 'KpDel'],
 ]
 
 
-class ReactionData:
+class _KeyReactionData:
 
     def __init__(self, key_code: KeyCode, with_shift: bool, with_alt: bool = False):
         self.key_code = key_code
@@ -147,7 +149,7 @@ class KeyboardCreator:
     }
 
     def __init__(self, virtual_key_order: list[list[VirtualKeySerial]],
-                 layers: dict[VirtualKeySerial, list[str]],
+                 layers: dict[VirtualKeySerial, list[ReactionName]],
                  modifiers: dict[VirtualKeySerial, ModKeyName],
                  macros: dict[MacroName, MacroDescription]
                  ):
@@ -156,7 +158,7 @@ class KeyboardCreator:
         self._modifiers = modifiers
         self._macros = macros
 
-        self._reaction_map: dict[ReactionName, ReactionData] = {}
+        self._reaction_map: dict[ReactionName, _KeyReactionData] = {}
 
     def create(self) -> VirtualKeyboard:
         self._reaction_map = dict(self._create_reaction_map())
@@ -187,18 +189,18 @@ class KeyboardCreator:
         )
 
     @staticmethod
-    def _create_reaction_map() -> Iterator[tuple[ReactionName, ReactionData]]:
+    def _create_reaction_map() -> Iterator[tuple[ReactionName, _KeyReactionData]]:
         for data in KEYCODES_DATA:
             key_code, en_reaction_without_shift, en_reaction_with_shift, de_reaction_without_shift, de_reaction_with_shift = data[:5]
 
-            yield de_reaction_without_shift, ReactionData(key_code=key_code, with_shift=False)
+            yield de_reaction_without_shift, _KeyReactionData(key_code=key_code, with_shift=False)
 
             if de_reaction_with_shift != '':
-                yield de_reaction_with_shift, ReactionData(key_code=key_code, with_shift=True)
+                yield de_reaction_with_shift, _KeyReactionData(key_code=key_code, with_shift=True)
 
             if len(data) >= 6:
                 de_reaction_with_alt = data[5]
-                yield de_reaction_with_alt, ReactionData(key_code=key_code, with_shift=False, with_alt=True)
+                yield de_reaction_with_alt, _KeyReactionData(key_code=key_code, with_shift=False, with_alt=True)
 
         for i in range(26):
             key_code = KC.A + i
@@ -215,13 +217,13 @@ class KeyboardCreator:
                 de_lower_char = en_lower_char
                 de_upper_char = en_upper_char
 
-            yield de_lower_char, ReactionData(key_code=key_code, with_shift=False)
-            yield de_upper_char, ReactionData(key_code=key_code, with_shift=True)
+            yield de_lower_char, _KeyReactionData(key_code=key_code, with_shift=False)
+            yield de_upper_char, _KeyReactionData(key_code=key_code, with_shift=True)
 
             if de_lower_char == 'q':
-                yield '@', ReactionData(key_code=key_code, with_shift=False, with_alt=True)
+                yield '@', _KeyReactionData(key_code=key_code, with_shift=False, with_alt=True)
 
-    def _create_macro(self, macro_desc: str) -> KeyReaction:
+    def _create_macro(self, macro_desc: str) -> OneKeyReactions:
         pass  # todo: implement
 
     @staticmethod
@@ -238,7 +240,7 @@ class KeyboardCreator:
 
         return LayerKey(vkey_serial, layer=layer)
 
-    def _create_layer(self, lines: list[str]) -> Iterator[tuple[VirtualKeySerial, KeyReaction]]:
+    def _create_layer(self, lines: list[str]) -> Iterator[tuple[VirtualKeySerial, OneKeyReactions]]:
         assert len(lines) == len(self._virtual_key_order)
 
         for line, key_order_in_row in zip(lines, self._virtual_key_order):
@@ -252,29 +254,48 @@ class KeyboardCreator:
                 if reaction:
                     yield vkey_serial, reaction
 
-    def _create_reaction(self, reaction_name: ReactionName) -> KeyReaction | None:
+    def _create_reaction(self, reaction_name: ReactionName) -> OneKeyReactions | None:
         if reaction_name == '·':
             return None  # not set
 
         if reaction_name in self._macros:
             return None  # todo: implement
+        elif reaction_name == 'MouseLeft':
+            mouse_cmd = MouseButtonCmd(Mouse.LEFT_BUTTON)
+            return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
+                                   on_release_key_reaction_commands=[])
+        elif reaction_name == 'MouseRight':
+            mouse_cmd = MouseButtonCmd(Mouse.RIGHT_BUTTON)
+            return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
+                                   on_release_key_reaction_commands=[])
+        elif reaction_name == 'MouseWheelUp':
+            mouse_cmd = MouseWheelCmd(offset=1)
+            return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
+                                   on_release_key_reaction_commands=[])
+        elif reaction_name == 'MouseWheelDown':
+            mouse_cmd = MouseWheelCmd(offset=-1)
+            return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
+                                   on_release_key_reaction_commands=[])
+
+        if reaction_name not in self._reaction_map:
+            pass
 
         assert reaction_name in self._reaction_map
-        reaction_data: ReactionData = self._reaction_map[reaction_name]
+        reaction_data: _KeyReactionData = self._reaction_map[reaction_name]
         key_code = reaction_data.key_code
-        press_cmd = KeyCmd(kind=KeyCmdKind.PRESS, key_code=key_code)
-        release_cmd = KeyCmd(kind=KeyCmdKind.RELEASE, key_code=key_code)
+        press_cmd = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=key_code)
+        release_cmd = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=key_code)
 
         if reaction_data.with_shift:
-            shift_press_cmd = KeyCmd(kind=KeyCmdKind.PRESS, key_code=KC.LEFT_SHIFT)
-            shift_release_cmd = KeyCmd(kind=KeyCmdKind.RELEASE, key_code=KC.LEFT_SHIFT)
-            return KeyReaction(on_press_key_sequence=[shift_press_cmd, press_cmd],
-                               on_release_key_sequence=[release_cmd, shift_release_cmd])
+            shift_press_cmd = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.LEFT_SHIFT)
+            shift_release_cmd = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.LEFT_SHIFT)
+            return OneKeyReactions(on_press_key_reaction_commands=[shift_press_cmd, press_cmd],
+                                   on_release_key_reaction_commands=[release_cmd, shift_release_cmd])
         elif reaction_data.with_alt:
-            alt_press_cmd = KeyCmd(kind=KeyCmdKind.PRESS, key_code=KC.RIGHT_ALT)
-            alt_release_cmd = KeyCmd(kind=KeyCmdKind.RELEASE, key_code=KC.RIGHT_ALT)
-            return KeyReaction(on_press_key_sequence=[alt_press_cmd, press_cmd],
-                               on_release_key_sequence=[release_cmd, alt_release_cmd])
+            alt_press_cmd = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.RIGHT_ALT)
+            alt_release_cmd = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.RIGHT_ALT)
+            return OneKeyReactions(on_press_key_reaction_commands=[alt_press_cmd, press_cmd],
+                                   on_release_key_reaction_commands=[release_cmd, alt_release_cmd])
         else:
-            return KeyReaction(on_press_key_sequence=[press_cmd],
-                               on_release_key_sequence=[release_cmd])
+            return OneKeyReactions(on_press_key_reaction_commands=[press_cmd],
+                                   on_release_key_reaction_commands=[release_cmd])

@@ -13,7 +13,8 @@ from kbdlayoutdata import VIRTUAL_KEY_ORDER, LAYERS, \
 from keyboardcreator import KeyboardCreator
 from keyboardhalf import KeyboardHalf, KeyGroup
 from keysdata import *
-from virtualkeyboard import KeyCmdKind, KeySequence, VirtualKeyboard
+from virtualkeyboard import VirtualKeyboard
+from reactions import KeyCmdKind, ReactionCommands
 
 TARGET_CPI = 800
 
@@ -203,15 +204,15 @@ def get_pressed_pkeys() -> set[PhysicalKeySerial]:
             if not gp.value}
 
 
-def send_key_seq(time: TimeInMs, key_seq: KeySequence):
+def send_key_seq(time: TimeInMs, key_seq: ReactionCommands):
     if len(key_seq) == 0:
         return
 
     print(f'{int(time)} key_seq: {key_seq}')
     for key_cmd in key_seq:
-        if key_cmd.kind == KeyCmdKind.PRESS:
+        if key_cmd.kind == KeyCmdKind.KEY_PRESS:
             kbd_device.press(key_cmd.key_code)
-        elif key_cmd.kind == KeyCmdKind.RELEASE:
+        elif key_cmd.kind == KeyCmdKind.KEY_RELEASE:
             kbd_device.release(key_cmd.key_code)
 
 

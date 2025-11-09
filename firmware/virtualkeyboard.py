@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from base import TimeInMs, KeyCode, VirtualKeySerial, PhysicalKeySerial
+from base import TimeInMs, KeyCode, VirtualKeySerial
 from keyboardhalf import VKeyPressEvent
+from reactions import KeyCmdKind, KeyCmd, OneKeyReactions, ReactionCmd
 
 try:
     from typing import Iterator
@@ -9,48 +10,7 @@ except ImportError:
     pass
 
 
-class KeyCmdKind:  # enum
-    RELEASE = 0
-    PRESS = 1
-    SEND = 2
-
-
-KeyCmdKindValue = int
-
-
-class KeyCmd:
-    def __init__(self, kind: KeyCmdKindValue, key_code: KeyCode):
-        self.kind = kind
-        self.key_code = key_code
-
-    def __str__(self) -> str:
-        if self.kind == KeyCmdKind.PRESS:
-            return f'press({self.key_code})'
-        elif self.kind == KeyCmdKind.RELEASE:
-            return f'release({self.key_code})'
-        else:
-            return f'???({self.key_code})'
-
-    def __repr__(self):
-        return str(self)
-
-    def __eq__(self, other: KeyCmd) -> bool:
-        return self.kind == other.kind and self.key_code == other.key_code
-
-    def __ne__(self, other: KeyCmd) -> bool:
-        return not self == other
-
-
-KeySequence = list  # list[KeyCmd]
-
-
-class KeyReaction:  # KeySetting?
-    def __init__(self, on_press_key_sequence: KeySequence, on_release_key_sequence: KeySequence):
-        self.on_press_key_sequence = on_press_key_sequence
-        self.on_release_key_sequence = on_release_key_sequence
-
-
-Layer = dict  # dict[VirtualKeySerial, KeyReaction]
+Layer = dict  # dict[VirtualKeySerial, OneKeyReactions]
 
 
 class VirtualKey:
@@ -109,7 +69,7 @@ class VirtualKeyboard:
         self._deferred_simple_keys: list[SimpleKey] = []  # wait for Tap/Hold decision
         self._next_decision_time: TimeInMs | None = None
 
-    def update(self, time: TimeInMs, vkey_events: list[VKeyPressEvent]) -> Iterator[KeyCmd]:
+    def update(self, time: TimeInMs, vkey_events: list[VKeyPressEvent]) -> Iterator[ReactionCmd]:
         if len(vkey_events) == 0 and (self._next_decision_time is None or self._next_decision_time > time):
             return  # too early
 
@@ -125,7 +85,7 @@ class VirtualKeyboard:
     def _sorted_vkey_events(self, vkey_events: list[VKeyPressEvent]) -> Iterator[VKeyPressEvent]:
         yield from vkey_events   # todo: implement it correct
 
-    def _update_by_time(self, time: TimeInMs) -> Iterator[KeyCmd]:
+    def _update_by_time(self, time: TimeInMs) -> Iterator[ReactionCmd]:
         """
             tap/hold: undecided -> hold
             simple: deferred -> press
@@ -150,15 +110,15 @@ class VirtualKeyboard:
 
             for simple_key in self._deferred_simple_keys:
                 if simple_key.last_press_time > oldest_tap_hold_key_press_time:
-                    reaction = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
-                    if reaction:
-                        yield from reaction.on_press_key_sequence
+                    one_key_reactions = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
+                    if one_key_reactions:
+                        yield from one_key_reactions.on_press_key_reaction_commands
                     simple_keys_to_remove.append(simple_key)
 
             for simple_key in simple_keys_to_remove:
                 self._deferred_simple_keys.remove(simple_key)
 
-    def _update_vkey_event(self, time: TimeInMs, vkey_event: VKeyPressEvent) -> Iterator[KeyCmd]:
+    def _update_vkey_event(self, time: TimeInMs, vkey_event: VKeyPressEvent) -> Iterator[ReactionCmd]:
         vkey_serial = vkey_event.vkey_serial
         vkey = self._all_keys[vkey_serial]
 
@@ -182,17 +142,17 @@ class VirtualKeyboard:
         """
         self._undecided_tap_hold_keys.append(tap_hold_key)
 
-    def _on_end_press_tap_hold_key(self, tap_hold_key: TapHoldKey) -> Iterator[KeyCmd]:
+    def _on_end_press_tap_hold_key(self, tap_hold_key: TapHoldKey) -> Iterator[ReactionCmd]:
         """
             tap/hold: undecided -> tap (press + release) + simple: deferred -> press
                       hold -> inactive
         """
         if tap_hold_key in self._undecided_tap_hold_keys:
             # tap/hold: tap (press + release)
-            reaction = self._cur_layer.get(tap_hold_key.serial)  # for simplifying, take current layer
-            if reaction:
-                yield from reaction.on_press_key_sequence
-                yield from reaction.on_release_key_sequence
+            one_key_reactions = self._cur_layer.get(tap_hold_key.serial)  # for simplifying, take current layer
+            if one_key_reactions:
+                yield from one_key_reactions.on_press_key_reaction_commands
+                yield from one_key_reactions.on_release_key_reaction_commands
 
             self._undecided_tap_hold_keys.remove(tap_hold_key)
 
@@ -202,9 +162,9 @@ class VirtualKeyboard:
             for simple_key in self._deferred_simple_keys:
                 if simple_key.last_press_time > tap_hold_key.last_press_time:
                     # simple: -> press
-                    reaction = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
-                    if reaction:
-                        yield from reaction.on_press_key_sequence
+                    one_key_reactions = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
+                    if one_key_reactions:
+                        yield from one_key_reactions.on_press_key_reaction_commands
                     simple_keys_to_remove.append(simple_key)
 
             for simple_key in simple_keys_to_remove:
@@ -214,7 +174,7 @@ class VirtualKeyboard:
             # tap/hold: hold -> inactive
             yield from self._on_end_holding_reaction(tap_hold_key)
 
-    def _on_begin_press_simple_key(self, simple_key: SimpleKey) -> Iterator[KeyCmd]:
+    def _on_begin_press_simple_key(self, simple_key: SimpleKey) -> Iterator[ReactionCmd]:
         """
              simple: inactive -> press or deferred
         """
@@ -223,11 +183,11 @@ class VirtualKeyboard:
             self._deferred_simple_keys.append(simple_key)
         else:
             # simple: -> press
-            reaction = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
-            if reaction:
-                yield from reaction.on_press_key_sequence
+            one_key_reactions = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
+            if one_key_reactions:
+                yield from one_key_reactions.on_press_key_reaction_commands
 
-    def _on_end_press_simple_key(self, simple_key: SimpleKey) -> Iterator[KeyCmd]:
+    def _on_end_press_simple_key(self, simple_key: SimpleKey) -> Iterator[ReactionCmd]:
         """
             tap/hold: undecided -> hold   # Permissive Hold (s. https://docs.qmk.fm/tap_hold)
             simple: deferred -> press + release
@@ -257,40 +217,40 @@ class VirtualKeyboard:
 
                 if simple_key2.last_press_time > oldest_tap_hold_key_press_time:
                     # simple: -> press
-                    reaction = self._cur_layer.get(simple_key2.serial)  # for simplifying, take current layer
-                    if reaction:
-                        yield from reaction.on_press_key_sequence
+                    one_key_reactions = self._cur_layer.get(simple_key2.serial)  # for simplifying, take current layer
+                    if one_key_reactions:
+                        yield from one_key_reactions.on_press_key_reaction_commands
                     simple_keys_to_remove.append(simple_key2)
 
             for simple_key2 in simple_keys_to_remove:
                 self._deferred_simple_keys.remove(simple_key2)
 
         # this simple:
-        reaction = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
+        one_key_reactions = self._cur_layer.get(simple_key.serial)  # for simplifying, take current layer
 
         if simple_key in self._deferred_simple_keys:
             # simple: deferred -> press + release
-            if reaction:
-                yield from reaction.on_press_key_sequence
-                yield from reaction.on_release_key_sequence
+            if one_key_reactions:
+                yield from one_key_reactions.on_press_key_reaction_commands
+                yield from one_key_reactions.on_release_key_reaction_commands
 
             self._deferred_simple_keys.remove(simple_key)
         else:
             # simple: pressed -> release
-            if reaction:
-                yield from reaction.on_release_key_sequence
+            if one_key_reactions:
+                yield from one_key_reactions.on_release_key_reaction_commands
 
-    def _on_begin_holding_reaction(self, tap_hold_key: TapHoldKey) -> Iterator[KeyCmd]:
+    def _on_begin_holding_reaction(self, tap_hold_key: TapHoldKey) -> Iterator[ReactionCmd]:
         if isinstance(tap_hold_key, LayerKey):
             layer_key = tap_hold_key
             self._cur_layer = layer_key.layer
         elif isinstance(tap_hold_key, ModKey):
             mod_key = tap_hold_key
-            yield KeyCmd(kind=KeyCmdKind.PRESS, key_code=mod_key.mod_key_code)
+            yield KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=mod_key.mod_key_code)
 
-    def _on_end_holding_reaction(self, tap_hold_key: TapHoldKey) -> Iterator[KeyCmd]:
+    def _on_end_holding_reaction(self, tap_hold_key: TapHoldKey) -> Iterator[ReactionCmd]:
         if isinstance(tap_hold_key, LayerKey):
             self._cur_layer = self._default_layer
         elif isinstance(tap_hold_key, ModKey):
             mod_key = tap_hold_key
-            yield KeyCmd(kind=KeyCmdKind.RELEASE, key_code=mod_key.mod_key_code)
+            yield KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=mod_key.mod_key_code)

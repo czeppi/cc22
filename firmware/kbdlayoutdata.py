@@ -138,6 +138,7 @@ VIRTUAL_KEYS = {
     RPD: [RIGHT_PINKY_DOWN],
 }
 
+
 VIRTUAL_KEY_ORDER = [
     [LPU, LRU, LMU, LI1U, LI2U, LTU,   RTU, RI2U, RI1U, RMU, RRU, RPU],
     [LPM, LRM, LMM, LI1M, LI2M, LTM,   RTM, RI2M, RI1M, RMM, RRM, RPM],
@@ -160,6 +161,11 @@ LAYERS = {
         '· · · · · ·   · + 7 8 9 %',
         '· · · · · ·   · - 4 5 6 ,',
         '· · · · · ·   0 · 1 2 3 .',
+    ],
+    LTM: [
+        '· · · · · ·   · · MouseLeft · MouseRight ·',
+        '· · · · · ·   · · ·         · ·          ·',
+        '· · · · · ·   · · ·         · ·          .',
     ],
     RTU: [
         '· · · · · ·   · · F1 F2  F3  F4',

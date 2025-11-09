@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from keyboardcreator import KeyboardCreator
-from virtualkeyboard import KeySequence, KeyCmdKind
+from reactions import KeyCmdKind, ReactionCommands, KeyCmd, MouseButtonCmd, MouseWheelCmd, ReactionCmd
 
 try:
     from typing import Iterator
@@ -166,30 +166,30 @@ class LeftKeyboardSide:
             print(f'mouse wheel: {queue_item.encoder_offset}')
             self._mouse_device.move(wheel=queue_item.encoder_offset)
 
-        #self._mouse_device.click(Mouse.LEFT_BUTTON)
-
         my_vkey_events = list(self._kbd_half.update(time=queue_item.time,
                                                     cur_pressed_pkeys=queue_item.my_pressed_pkeys))
         t = time.monotonic() * 1000
-        key_seq = list(self._virt_keyboard.update(time=t,
-                                                  vkey_events=queue_item.other_vkey_events + my_vkey_events))
-        self._send_key_seq(key_seq)
+        reaction_commands = list(self._virt_keyboard.update(time=t,
+                                                            vkey_events=queue_item.other_vkey_events + my_vkey_events))
+        for reaction_cmd in reaction_commands:
+            self._send_reaction_cmd(reaction_cmd)
 
     def _get_pressed_pkeys(self) -> set[PhysicalKeySerial]:
         return {button.pkey_serial
                 for button in self._buttons
                 if button.is_pressed()}
 
-    def _send_key_seq(self, key_seq: KeySequence) -> None:
-        if len(key_seq) == 0:
-            return
-
-        # print(f'{int(time)} key_seq: {key_seq}')
-        for key_cmd in key_seq:
-            if key_cmd.kind == KeyCmdKind.PRESS:
+    def _send_reaction_cmd(self, reaction_cmd: ReactionCmd) -> None:
+        if isinstance(reaction_cmd, KeyCmd):
+            key_cmd = reaction_cmd
+            if key_cmd.kind == KeyCmdKind.KEY_PRESS:
                 self._kbd_device.press(key_cmd.key_code)
-            elif key_cmd.kind == KeyCmdKind.RELEASE:
+            elif key_cmd.kind == KeyCmdKind.KEY_RELEASE:
                 self._kbd_device.release(key_cmd.key_code)
+        elif isinstance(reaction_cmd, MouseButtonCmd):
+            self._mouse_device.click(reaction_cmd.button_no)  # Mouse.LEFT_BUTTON)
+        elif isinstance(reaction_cmd, MouseWheelCmd):
+            self._mouse_device.move(wheel=reaction_cmd.offset)
 
 
 class QueueItem:

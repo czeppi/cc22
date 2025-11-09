@@ -39,7 +39,7 @@ def simulate() -> None:
     for _ in range(10000):
         for time, pressed_pkeys in iter_steps():
             vkey_events = list(kbd_half.update(time=time, cur_pressed_pkeys=pressed_pkeys))
-            act_key_seq = list(keyboard.update(time=time, vkey_events=vkey_events))
+            reaction_commands = list(keyboard.update(time=time, vkey_events=vkey_events))
 
 
 def iter_steps() -> Iterator[tuple[TimeInMs, set[PhysicalKeySerial]]]:

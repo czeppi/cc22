@@ -5,16 +5,17 @@ from base import KeyCode, TimeInMs, VirtualKeySerial, PhysicalKeySerial
 from keyboardcreator import KeyboardCreator
 from keyboardhalf import VKeyPressEvent, KeyGroup, \
     KeyboardHalf
-from virtualkeyboard import KeyCmd, KeyCmdKind, KeyReaction, KeySequence, SimpleKey, TapHoldKey, ModKey, \
+from virtualkeyboard import SimpleKey, TapHoldKey, ModKey, \
     VirtualKeyboard, Layer
+from reactions import KeyCmdKind, KeyCmd, ReactionCommands, OneKeyReactions
 from keysdata import RIGHT_THUMB_DOWN, RIGHT_THUMB_UP, RTU, RTM, RTD, NO_KEY, RT
 
-A_DOWN = KeyCmd(kind=KeyCmdKind.PRESS, key_code=KC.A)
-A_UP = KeyCmd(kind=KeyCmdKind.RELEASE, key_code=KC.A)
-B_DOWN = KeyCmd(kind=KeyCmdKind.PRESS, key_code=KC.B)
-B_UP = KeyCmd(kind=KeyCmdKind.RELEASE, key_code=KC.B)
-SHIFT_DOWN = KeyCmd(kind=KeyCmdKind.PRESS, key_code=KC.LEFT_SHIFT)
-SHIFT_UP = KeyCmd(kind=KeyCmdKind.RELEASE, key_code=KC.LEFT_SHIFT)
+A_DOWN = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.A)
+A_UP = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.A)
+B_DOWN = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.B)
+B_UP = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.B)
+SHIFT_DOWN = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.LEFT_SHIFT)
+SHIFT_UP = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.LEFT_SHIFT)
 
 
 class TapKeyTest(unittest.TestCase):
@@ -33,9 +34,9 @@ class TapKeyTest(unittest.TestCase):
         TapHoldKey.TAP_HOLD_TERM = 200
 
     @staticmethod
-    def _create_key_assignment(keycode: KeyCode) -> KeyReaction:
-        return KeyReaction(on_press_key_sequence=[KeyCmd(kind=KeyCmdKind.PRESS, key_code=keycode)],
-                           on_release_key_sequence=[KeyCmd(kind=KeyCmdKind.RELEASE, key_code=keycode)])
+    def _create_key_assignment(keycode: KeyCode) -> OneKeyReactions:
+        return OneKeyReactions(on_press_key_reaction_commands=[KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=keycode)],
+                               on_release_key_reaction_commands=[KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=keycode)])
 
     def test_b_solo(self) -> None:
         """       TAPPING_TERM
@@ -172,7 +173,7 @@ class TapKeyTest(unittest.TestCase):
         self._step(210, release='a', expected_key_seq=[SHIFT_UP])
         self._step(220, release='b', expected_key_seq=[B_UP])
 
-    def _step(self, time: TimeInMs, expected_key_seq: KeySequence,
+    def _step(self, time: TimeInMs, expected_key_seq: ReactionCommands,
               press: str | None = None, release: str | None = None) -> None:
 
         vkey_events: list[VKeyPressEvent] = []
@@ -185,9 +186,9 @@ class TapKeyTest(unittest.TestCase):
             vkey_event = VKeyPressEvent(vkey_serial, pressed=False)
             vkey_events.append(vkey_event)
 
-        act_key_seq = list(self._kbd.update(time=time, vkey_events=vkey_events))
+        act_reaction_commands = list(self._kbd.update(time=time, vkey_events=vkey_events))
 
-        self.assertEqual(expected_key_seq, act_key_seq)
+        self.assertEqual(expected_key_seq, act_reaction_commands)
 
     def _get_vkey_serial_by_name(self, vkey_name: str) -> VirtualKeySerial:
         if vkey_name == 'a':
@@ -202,8 +203,8 @@ class ThumbUpKeyTest(unittest.TestCase):  # keyboard with only 'thumb-up' key
 
         This is a simple integration test
     """
-    _SPACE_DOWN = KeyCmd(kind=KeyCmdKind.PRESS, key_code=KC.SPACE)
-    _SPACE_UP = KeyCmd(kind=KeyCmdKind.RELEASE, key_code=KC.SPACE)
+    _SPACE_DOWN = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.SPACE)
+    _SPACE_UP = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.SPACE)
 
     def setUp(self):
         self._kbd_half = self._create_kbd_half()
@@ -268,13 +269,13 @@ class ThumbUpKeyTest(unittest.TestCase):  # keyboard with only 'thumb-up' key
         self._step(270, expected_key_seq=[])
         self._step(300, release='rtu', expected_key_seq=[])
 
-    def _step(self, time: TimeInMs, expected_key_seq: KeySequence, press='', release=''):
+    def _step(self, time: TimeInMs, expected_key_seq: ReactionCommands, press='', release=''):
         if press == 'rtu':
             self._pressed_pkeys.add(RIGHT_THUMB_UP)
         elif release == 'rtu':
             self._pressed_pkeys.remove(RIGHT_THUMB_UP)
 
         vkey_events = list(self._kbd_half.update(time, cur_pressed_pkeys=self._pressed_pkeys))
-        act_key_seq = list(self._virt_keyboard.update(time=time, vkey_events=vkey_events))
+        act_reaction_commands = list(self._virt_keyboard.update(time=time, vkey_events=vkey_events))
 
-        self.assertEqual(expected_key_seq, act_key_seq)
+        self.assertEqual(expected_key_seq, act_reaction_commands)
