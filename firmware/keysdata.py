@@ -29,6 +29,56 @@ LPU, LRU, LMU, LI1U, LI2U, LTU,   RTU, RI2U, RI1U, RMU, RRU, RPU = range(1, 13)
 LPM, LRM, LMM, LI1M, LI2M, LTM,   RTM, RI2M, RI1M, RMM, RRM, RPM = range(13, 25)
 LPD, LRD, LMD, LI1D, LI2D, LTD,   RTD, RI2D, RI1D, RMD, RRD, RPD = range(25, 37)
 
+VKEY_NAMES = {
+    LPU: 'LPU',
+    LPM: 'LPM',
+    LPD: 'LPD',
+
+    LRU: 'LRU',
+    LRM: 'LRM',
+    LRD: 'LRD',
+
+    LMU: 'LMU',
+    LMM: 'LMM',
+    LMD: 'LMD',
+
+    LI1U: 'LI1U',
+    LI1M: 'LI1M',
+    LI1D: 'LI1D',
+
+    LI2U: 'LI2U',
+    LI2M: 'LI2M',
+    LI2D: 'LI2D',
+
+    LTU: 'LTU',
+    LTM: 'LTM',
+    LTD: 'LTD',
+
+    RTU: 'RTU',
+    RTM: 'RTM',
+    RTD: 'RTD',
+
+    RI2U: 'RI2U',
+    RI2M: 'RI2M',
+    RI2D: 'RI2D',
+
+    RI1U: 'RI1U',
+    RI1M: 'RI1M',
+    RI1D: 'RI1D',
+
+    RMU: 'RMU',
+    RMM: 'RMM',
+    RMD: 'RMD',
+
+    RRU: 'RRU',
+    RRM: 'RRM',
+    RRD: 'RRD',
+
+    RPU: 'RPU',
+    RPM: 'RPM',
+    RPD: 'RPD',
+}
+
 # virtual groups
 LP = 1
 LR = 2

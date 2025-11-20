@@ -635,9 +635,10 @@ class SkeletonCreator:
                  + SwitchPairHolderCreator.FOOT_HEIGHT \
                  + base_height / 2
         
+        switch_pair_holder = SwitchPairHolderCreator()
         pair_holder_heat_set_insert_holes = [
             Pos(X=x, Y=y, Z=base_height/2) * SwitchHolderCreatorBase._create_counter_bore_hole(screw=data.FLAT_HEAD_SCREW_M2)
-            for x, y in SwitchPairHolderCreator.iter_foot_base_conn_points()]
+            for x, y in switch_pair_holder.iter_foot_base_conn_points()]
 
         big_box = Box(index_base_width, base_len, base_height)
         small_box = Box(base_len, base_len, base_height) - pair_holder_heat_set_insert_holes
@@ -652,12 +653,13 @@ class SkeletonCreator:
         z_dist = SwitchPairHolderCreator.MIDDLE_PART_HEIGHT_AT_CENTER \
                  + SwitchPairHolderCreator.FOOT_HEIGHT
 
+        switch_pair_holder = SwitchPairHolderCreator()
         for holder_loc in [loc.index, loc.middle, loc.ring, loc.pinkie]:
-            for x, y in SwitchPairHolderCreator.iter_foot_base_conn_points():
+            for x, y in switch_pair_holder.iter_foot_base_conn_points():
                 yield holder_loc * Pos(X=x, Y=y, Z=-z_dist) * SwitchHolderCreatorBase.create_heat_set_insert_hole(screw=data.FLAT_HEAD_SCREW_M2)
 
         index2_loc = loc.index * Pos(X=SingleSwitchHolderCreator.X_OFFSET)
-        for x, y in SingleSwitchHolderCreator.iter_foot_base_conn_points():
+        for x, y in switch_pair_holder.iter_foot_base_conn_points():
             yield index2_loc * Pos(X=x, Y=y, Z=-z_dist) * SwitchHolderCreatorBase.create_heat_set_insert_hole(screw=data.FLAT_HEAD_SCREW_M2)
 
     def _create_sphere(self) -> Part:

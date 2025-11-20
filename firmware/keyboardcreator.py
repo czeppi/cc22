@@ -1,7 +1,7 @@
 from base import KeyCode, VirtualKeySerial
 from keysdata import NO_KEY
 from virtualkeyboard import SimpleKey, ModKey, LayerKey, VirtualKeyboard
-from reactions import KeyCmdKind, KeyCmd, OneKeyReactions, MouseButtonCmd, MouseWheelCmd
+from reactions import KeyCmdKind, KeyCmd, OneKeyReactions, MouseButtonCmd, MouseWheelCmd, MouseButtonCmdKind, LogCmd
 
 try:
     from typing import Callable, Iterator
@@ -19,7 +19,7 @@ ReactionName = str  # p.e. 'a', '$', 'M5'
 
 KEYCODES_DATA = [
     # function row on std keyboard
-    [KC.ESCAPE, 'esc', '', 'esc', ''],
+    [KC.ESCAPE, 'Esc', '', 'Esc', ''],
     [KC.F1, 'F1', '', 'F1', ''],
     [KC.F2, 'F2', '', 'F2', ''],
     [KC.F3, 'F3', '', 'F3', ''],
@@ -65,7 +65,7 @@ KEYCODES_DATA = [
 
     # row 4 on std keyboard
     [KC.LEFT_SHIFT, 'LShift', '', 'LShift', ''],
-    [KC.BACKSLASH, '\\', '|', '<', '>', '|'],
+    [KC.KEYPAD_BACKSLASH, '\\', '|', '<', '>', '|'],
     # y ... m
     [KC.COMMA, ',', '<', ',', ';'],
     [KC.PERIOD, '.', '>', '.', ':'],
@@ -130,10 +130,11 @@ KEYCODES_DATA = [
 
 class _KeyReactionData:
 
-    def __init__(self, key_code: KeyCode, with_shift: bool, with_alt: bool = False):
+    def __init__(self, key_code: KeyCode, with_shift: bool, with_alt: bool = False, name: str = '???'):
         self.key_code = key_code
         self.with_shift = with_shift
         self.with_alt = with_alt
+        self.name = name
 
 
 class KeyboardCreator:
@@ -188,19 +189,29 @@ class KeyboardCreator:
             default_layer=dict(self._create_layer(self._layers[NO_KEY])),
         )
 
+    def create_key_code_map(self) -> dict[KeyCode, str]:
+        key_code_map: dict[KeyCode, str] = {}
+        for reaction_name, reaction_data in self._create_reaction_map():
+            if not reaction_data.with_shift and not reaction_data.with_alt:
+                key_code_map[reaction_data.key_code] = reaction_name
+        return key_code_map
+
+    def create_reaction_map(self) -> dict[ReactionName, _KeyReactionData]:
+        return dict(self._create_reaction_map())
+
     @staticmethod
     def _create_reaction_map() -> Iterator[tuple[ReactionName, _KeyReactionData]]:
         for data in KEYCODES_DATA:
             key_code, en_reaction_without_shift, en_reaction_with_shift, de_reaction_without_shift, de_reaction_with_shift = data[:5]
 
-            yield de_reaction_without_shift, _KeyReactionData(key_code=key_code, with_shift=False)
+            yield de_reaction_without_shift, _KeyReactionData(key_code=key_code, with_shift=False, name=de_reaction_without_shift)
 
             if de_reaction_with_shift != '':
-                yield de_reaction_with_shift, _KeyReactionData(key_code=key_code, with_shift=True)
+                yield de_reaction_with_shift, _KeyReactionData(key_code=key_code, with_shift=True, name=de_reaction_with_shift)
 
             if len(data) >= 6:
                 de_reaction_with_alt = data[5]
-                yield de_reaction_with_alt, _KeyReactionData(key_code=key_code, with_shift=False, with_alt=True)
+                yield de_reaction_with_alt, _KeyReactionData(key_code=key_code, with_shift=False, with_alt=True, name=de_reaction_with_alt)
 
         for i in range(26):
             key_code = KC.A + i
@@ -217,11 +228,11 @@ class KeyboardCreator:
                 de_lower_char = en_lower_char
                 de_upper_char = en_upper_char
 
-            yield de_lower_char, _KeyReactionData(key_code=key_code, with_shift=False)
-            yield de_upper_char, _KeyReactionData(key_code=key_code, with_shift=True)
+            yield de_lower_char, _KeyReactionData(key_code=key_code, with_shift=False, name=de_lower_char)
+            yield de_upper_char, _KeyReactionData(key_code=key_code, with_shift=True, name=de_upper_char)
 
             if de_lower_char == 'q':
-                yield '@', _KeyReactionData(key_code=key_code, with_shift=False, with_alt=True)
+                yield '@', _KeyReactionData(key_code=key_code, with_shift=False, with_alt=True, name='@')
 
     def _create_macro(self, macro_desc: str) -> OneKeyReactions:
         pass  # todo: implement
@@ -261,13 +272,15 @@ class KeyboardCreator:
         if reaction_name in self._macros:
             return None  # todo: implement
         elif reaction_name == 'MouseLeft':
-            mouse_cmd = MouseButtonCmd(Mouse.LEFT_BUTTON)
-            return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
-                                   on_release_key_reaction_commands=[])
+            press_cmd = MouseButtonCmd(Mouse.LEFT_BUTTON, kind=MouseButtonCmdKind.MOUSE_PRESS)
+            release_cmd = MouseButtonCmd(Mouse.LEFT_BUTTON, kind=MouseButtonCmdKind.MOUSE_RELEASE)
+            return OneKeyReactions(on_press_key_reaction_commands=[press_cmd],
+                                   on_release_key_reaction_commands=[release_cmd])
         elif reaction_name == 'MouseRight':
-            mouse_cmd = MouseButtonCmd(Mouse.RIGHT_BUTTON)
-            return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
-                                   on_release_key_reaction_commands=[])
+            press_cmd = MouseButtonCmd(Mouse.RIGHT_BUTTON, kind=MouseButtonCmdKind.MOUSE_PRESS)
+            release_cmd = MouseButtonCmd(Mouse.RIGHT_BUTTON, kind=MouseButtonCmdKind.MOUSE_RELEASE)
+            return OneKeyReactions(on_press_key_reaction_commands=[press_cmd],
+                                   on_release_key_reaction_commands=[release_cmd])
         elif reaction_name == 'MouseWheelUp':
             mouse_cmd = MouseWheelCmd(offset=1)
             return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
@@ -275,6 +288,17 @@ class KeyboardCreator:
         elif reaction_name == 'MouseWheelDown':
             mouse_cmd = MouseWheelCmd(offset=-1)
             return OneKeyReactions(on_press_key_reaction_commands=[mouse_cmd],
+                                   on_release_key_reaction_commands=[])
+        elif reaction_name == 'Log':
+            log_cmd = LogCmd()
+            return OneKeyReactions(on_press_key_reaction_commands=[log_cmd],
+                                   on_release_key_reaction_commands=[])
+
+            reaction_data: _KeyReactionData = self._reaction_map['a']
+            key_code = reaction_data.key_code
+            cmd = KeyCmd(kind=KeyCmdKind.KEY_SEND, key_code=key_code)
+
+            return OneKeyReactions(on_press_key_reaction_commands=[cmd] * 100,
                                    on_release_key_reaction_commands=[])
 
         if reaction_name not in self._reaction_map:

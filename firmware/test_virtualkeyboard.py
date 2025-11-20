@@ -1,4 +1,5 @@
 import unittest
+from typing import Iterator
 
 from adafruit_hid.keycode import Keycode as KC
 from base import KeyCode, TimeInMs, VirtualKeySerial, PhysicalKeySerial
@@ -7,8 +8,9 @@ from keyboardhalf import VKeyPressEvent, KeyGroup, \
     KeyboardHalf
 from virtualkeyboard import SimpleKey, TapHoldKey, ModKey, \
     VirtualKeyboard, Layer
+from kbdlayoutdata import VIRTUAL_KEY_ORDER, LAYERS, MODIFIERS, MACROS
 from reactions import KeyCmdKind, KeyCmd, ReactionCommands, OneKeyReactions
-from keysdata import RIGHT_THUMB_DOWN, RIGHT_THUMB_UP, RTU, RTM, RTD, NO_KEY, RT
+from keysdata import RIGHT_THUMB_DOWN, RIGHT_THUMB_UP, RTU, RTM, RTD, NO_KEY, RT, RI1U, LRU
 
 A_DOWN = KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.A)
 A_UP = KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.A)
@@ -279,3 +281,57 @@ class ThumbUpKeyTest(unittest.TestCase):  # keyboard with only 'thumb-up' key
         act_reaction_commands = list(self._virt_keyboard.update(time=time, vkey_events=vkey_events))
 
         self.assertEqual(expected_key_seq, act_reaction_commands)
+
+
+class RealVKeyboardTest(unittest.TestCase):
+
+    def setUp(self):
+        creator = KeyboardCreator(virtual_key_order=VIRTUAL_KEY_ORDER,
+                                  layers=LAYERS,
+                                  modifiers=MODIFIERS,
+                                  macros=MACROS,
+                                  )
+        self._virt_keyboard = creator.create()
+
+    def test_W_wrong(self):
+        """
+        614919:,other=[+ri1u]
+        614973:,self=[+lmu]
+        615043:,self=[-lmu],->[+e,-e]
+        615119:,,->[+LShift]
+        615149:,other=[-ri1u],->[-LShift]
+        """
+        press_w = KeyCmd(KeyCmdKind.KEY_PRESS, KC.W)
+        release_w = KeyCmd(KeyCmdKind.KEY_RELEASE, KC.W)
+        press_shift = KeyCmd(KeyCmdKind.KEY_PRESS, KC.LEFT_SHIFT)
+        release_shift = KeyCmd(KeyCmdKind.KEY_RELEASE, KC.LEFT_SHIFT)
+
+        self._step(19, [VKeyPressEvent(RI1U, pressed=True)], expected_reactions=[])
+        self._step(73, [VKeyPressEvent(LRU, pressed=True)], expected_reactions=[])
+        self._step(143, [VKeyPressEvent(LRU, pressed=False)], expected_reactions=[press_w, release_w])
+        self._step(219, [], expected_reactions=[press_shift])
+        self._step(249, [VKeyPressEvent(RI1U, pressed=False)], expected_reactions=[release_shift])
+
+    def test_W_correct(self):
+        """
+        614919:,other=[+ri1u]
+        614973:,self=[+lmu]
+        615043:,self=[-lmu],->[+e,-e]
+        615119:,,->[+LShift]
+        615149:,other=[-ri1u],->[-LShift]
+        """
+        press_w = KeyCmd(KeyCmdKind.KEY_PRESS, KC.W)
+        release_w = KeyCmd(KeyCmdKind.KEY_RELEASE, KC.W)
+        press_shift = KeyCmd(KeyCmdKind.KEY_PRESS, KC.LEFT_SHIFT)
+        release_shift = KeyCmd(KeyCmdKind.KEY_RELEASE, KC.LEFT_SHIFT)
+
+        self._step(19, [VKeyPressEvent(RI1U, pressed=True)], expected_reactions=[])
+        self._step(73, [VKeyPressEvent(LRU, pressed=True)], expected_reactions=[])
+        self._step(143, [VKeyPressEvent(LRU, pressed=False)], expected_reactions=[press_shift, press_w, release_w])
+        self._step(219, [], expected_reactions=[])
+        self._step(249, [VKeyPressEvent(RI1U, pressed=False)], expected_reactions=[release_shift])
+
+    def _step(self, time: TimeInMs, vkey_events: list[VKeyPressEvent], expected_reactions: list[KeyCmd]):
+        actual_reactions = list(
+            self._virt_keyboard.update(time=time, vkey_events=vkey_events))
+        self.assertEqual(expected_reactions, actual_reactions)

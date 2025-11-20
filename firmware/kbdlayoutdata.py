@@ -34,7 +34,6 @@ from keysdata import *
 # RX: GP5, GP9,  GP21?  # GP21 not in data sheet
 
 
-
 LEFT_KEY_GROUPS = {
     LP: {
         LPU: [LEFT_PINKY_UP],
@@ -148,51 +147,51 @@ VIRTUAL_KEY_ORDER = [
 
 LAYERS = {
     NO_KEY: [
-        'q w e r t Space   Space      z u i o p',
-        'a s d f g Del     Backspace  h j k l ö',
-        'y x c v b Tab     Enter      n m , . -',
-    ],
-    LTU: [
-        '· · · · · ·   · @ " { } `',
-        '· · · · · ·   · \\ / ( ) $',
-        "· · · · · ·   · # ' [ ] ´",
+        'q w e r t Del     Backspace z u i o p',
+        'a s d f g Tab     Enter     h j k l ö',
+        'y x c v b Space   Space     n m , . -',
     ],
     LTD: [
-        '· · · · · ·   · + 7 8 9 %',
-        '· · · · · ·   · - 4 5 6 ,',
-        '· · · · · ·   0 · 1 2 3 .',
+        'Esc Log · · · ·   · @ " { } `',
+        '·   ·   · · · ·   · \\ / ( ) $',
+        "·   ·   · · · ·   · # ' [ ] ´",
     ],
     LTM: [
-        '· · · · · ·   · · MouseLeft · MouseRight ·',
-        '· · · · · ·   · · ·         · ·          ·',
-        '· · · · · ·   · · ·         · ·          .',
+        '· · · · · ·   · + 7 8 9 ü',
+        '· · · · · ·   · - 4 5 6 ä',
+        '· · · · · ·   0 · 1 2 3 ß',
     ],
-    RTU: [
+    LTU: [
+        '· · · · · ·   · · MouseLeft · MouseRight ü',
+        '· · · · · ·   · · ·         · ·          ä',
+        '· · · · · ·   · · ·         · ·          ß',
+    ],
+    RTM: [
         '· · · · · ·   · · F1 F2  F3  F4',
         '· · · · · ·   · · F5 F6  F7  F8',
         '· · · · · ·   · · F9 F10 F11 F12',
     ],
     RTD: [
-        '/ * < ^ | ·   · · · · · ·',
-        '% + ! = & ·   · · · · · ·',
-        '· > l ? ~ ·   · · · · · ·',
+        '/ + ! = & ·   · · · · · ·',
+        '% * < ^ | ·   · · · · · ·',
+        '· - > ? ~ ·   · · · · · ·',
     ],
-    RTM: [
-        '· · M5 M2 M4 ·   · · PageUp   Home Up   End',
-        '· · ·  ·  M0 ·   · · PageDown Left Down Right',
-        '· · ·  ·  M1 ·   · · ·        ·    ·    ·',
+    RTU: [
+        '· · M5 M2 M4 ·   · PageUp   Home Up   End   ·',
+        '· · ·  ·  M0 ·   · ·        ·    ·    ·     ·',
+        '· · ·  ·  M1 ·   · PageDown Left Down Right ·',
     ],
 }
 
 MODIFIERS = {
-    LI1D: 'LShift',
-    LMD: 'LCtrl',
-    LRD: 'LAlt',
-    LPD: 'LGui',
-    RI1D: 'LShift',
-    RMD: 'LCtrl',
-    RRD: 'LAlt',
-    RPD: 'LGui',
+    LI1U: 'LShift',
+    LMU: 'LCtrl',
+    LRU: 'LAlt',
+    LPU: 'LGui',
+    RI1U: 'LShift',
+    RMU: 'LCtrl',
+    RRU: 'LAlt',
+    RPU: 'LGui',
 }
 
 MACROS = {

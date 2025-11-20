@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from keyboardcreator import KeyboardCreator
-from reactions import KeyCmdKind, ReactionCommands, KeyCmd, MouseButtonCmd, MouseWheelCmd, ReactionCmd
+from keyboardcreator import KeyboardCreator, ReactionName, _KeyReactionData
+from reactions import KeyCmdKind, ReactionCommands, KeyCmd, MouseButtonCmd, MouseWheelCmd, ReactionCmd, \
+    MouseButtonCmdKind, LogCmd, KeyCmdKindValue
 
 try:
     from typing import Iterator
@@ -13,10 +14,11 @@ import board
 import usb_hid
 from digitalio import DigitalInOut, Direction, Pull
 import rotaryio
+from adafruit_hid.keycode import Keycode as KC
 from adafruit_hid.keyboard import Keyboard
 from adafruit_hid.mouse import Mouse
 
-from base import PhysicalKeySerial, TimeInMs
+from base import PhysicalKeySerial, TimeInMs, KeyCode
 from button import Button
 from kbdlayoutdata import LEFT_KEY_GROUPS, VIRTUAL_KEY_ORDER, LAYERS, MODIFIERS, MACROS
 from keyboardhalf import KeyboardHalf, KeyGroup, VKeyPressEvent
@@ -94,10 +96,13 @@ class LeftKeyboardSide:
                                   macros=MACROS,
                                   )
         self._virt_keyboard = creator.create()
+        self._reaction_map = creator.create_reaction_map()
+        self._key_code_map = creator.create_key_code_map()
 
         self._kbd_device = Keyboard(usb_hid.devices)
         self._mouse_device = Mouse(usb_hid.devices)
         self._queue: list[QueueItem] = []
+        self._log_items: list[LogItem] = []
 
     def init(self) -> None:
         print('init uart...')
@@ -174,6 +179,13 @@ class LeftKeyboardSide:
         for reaction_cmd in reaction_commands:
             self._send_reaction_cmd(reaction_cmd)
 
+        if len(my_vkey_events) > 0 or len(queue_item.other_vkey_events) > 0 or len(reaction_commands) > 0:
+            log_item = LogItem(time_=t, my_vkey_events=my_vkey_events, other_vkey_events=queue_item.other_vkey_events,
+                               reaction_commands=reaction_commands)
+            self._log_items.append(log_item)
+            if len(self._log_items) > 7:
+                self._log_items = self._log_items[-7:]
+
     def _get_pressed_pkeys(self) -> set[PhysicalKeySerial]:
         return {button.pkey_serial
                 for button in self._buttons
@@ -181,15 +193,29 @@ class LeftKeyboardSide:
 
     def _send_reaction_cmd(self, reaction_cmd: ReactionCmd) -> None:
         if isinstance(reaction_cmd, KeyCmd):
-            key_cmd = reaction_cmd
-            if key_cmd.kind == KeyCmdKind.KEY_PRESS:
-                self._kbd_device.press(key_cmd.key_code)
-            elif key_cmd.kind == KeyCmdKind.KEY_RELEASE:
-                self._kbd_device.release(key_cmd.key_code)
+            cmd_executer = KeyCmdExecuter(self._kbd_device)
+            cmd_executer.execute(reaction_cmd)
         elif isinstance(reaction_cmd, MouseButtonCmd):
-            self._mouse_device.click(reaction_cmd.button_no)  # Mouse.LEFT_BUTTON)
+            mouse_cmd = reaction_cmd
+            if mouse_cmd.kind == MouseButtonCmdKind.MOUSE_PRESS:
+                self._mouse_device.press(mouse_cmd.button_no)
+            elif mouse_cmd.kind == MouseButtonCmdKind.MOUSE_RELEASE:
+                self._mouse_device.release(mouse_cmd.button_no)
         elif isinstance(reaction_cmd, MouseWheelCmd):
             self._mouse_device.move(wheel=reaction_cmd.offset)
+        elif isinstance(reaction_cmd, LogCmd):
+            self._send_log_key_codes()
+
+    def _send_log_key_codes(self):
+        dumper = LogItemDumper(key_code_map=self._key_code_map)
+        text = '\n' + '\n'.join(dumper.dump(log_item) for log_item in self._log_items[:-2]) + '\n'
+
+        converter = TextToKeyCodeConverter(reaction_map=self._reaction_map)
+        key_commands = list(converter.convert_text(text))
+
+        cmd_executer = KeyCmdExecuter(self._kbd_device)
+        for key_cmd in key_commands:
+            cmd_executer.execute(key_cmd)
 
 
 class QueueItem:
@@ -205,6 +231,136 @@ class QueueItem:
 
     def __str__(self) -> str:
         return f'QueueItem({self.time}, mouse=({self.mouse_move.dx, self.mouse_move.dy}), my-pkeys=({self.my_pressed_pkeys})), other-vkey={self.other_vkey_events})'
+
+
+class LogItem:
+
+    def __init__(self, time_: TimeInMs, my_vkey_events: list[VKeyPressEvent], other_vkey_events: list[VKeyPressEvent],
+                 reaction_commands: list[ReactionCmd]):
+        self._time = time_
+        self._my_vkey_events = my_vkey_events
+        self._other_vkey_events = other_vkey_events
+        self._reaction_commands = reaction_commands
+
+    @property
+    def time(self) -> TimeInMs:
+        return self._time
+
+    @property
+    def my_vkey_events(self) -> list[VKeyPressEvent]:
+        return self._my_vkey_events
+
+    @property
+    def other_vkey_events(self) -> list[VKeyPressEvent]:
+        return self._other_vkey_events
+
+    @property
+    def reaction_commands(self) -> list[ReactionCmd]:
+        return self._reaction_commands
+
+
+class LogItemDumper:
+
+    def __init__(self, key_code_map: dict[KeyCode, str]):
+        self._key_code_map = key_code_map
+
+    def dump(self, log_item: LogItem) -> str:
+        return ', '.join(self._iter_str_parts(log_item))
+
+    def _iter_str_parts(self, log_item: LogItem) -> Iterator[str]:
+        yield f'{int(log_item.time)}: '
+
+        yield ', '.join(self._iter_vkey_parts(log_item))
+
+        if len(log_item.reaction_commands) > 0:
+            reaction_str = ', '.join(self._create_reaction_str(reaction_cmd)
+                                     for reaction_cmd in log_item.reaction_commands)
+            yield ' -> [' + reaction_str + ']'
+
+    def _iter_vkey_parts(self, log_item: LogItem) -> Iterator[str]:
+        if len(log_item.other_vkey_events) > 0:
+            other_str = self._create_vkey_events_str(log_item.other_vkey_events)
+            yield f'other={other_str}'
+
+        if len(log_item.my_vkey_events) > 0:
+            self_str = self._create_vkey_events_str(log_item.my_vkey_events)
+            yield f'self={self_str}'
+
+    def _create_vkey_events_str(self, vkey_events: list[VKeyPressEvent]) -> str:
+        return '[' + ', '.join(self._create_vkey_event_str(vkey_event) for vkey_event in vkey_events) + ']'
+
+    @staticmethod
+    def _create_vkey_event_str(vkey_event: VKeyPressEvent) -> str:
+        prefix = '+' if vkey_event.pressed else '-'
+        vkey_name = VKEY_NAMES[vkey_event.vkey_serial].lower()
+        return prefix + vkey_name
+
+    def _create_reaction_str(self, reaction_cmd: ReactionCmd) -> str:
+        if isinstance(reaction_cmd, KeyCmd):
+            key_cmd = reaction_cmd
+            kind_str = self._create_key_cmd_kind_str(key_cmd.kind)
+            key_code_str = self._key_code_map[key_cmd.key_code]
+            return f'{kind_str}{key_code_str}'
+        else:
+            return ''
+
+    @staticmethod
+    def _create_key_cmd_kind_str(key_cmd_kind: KeyCmdKindValue) -> str:
+        if key_cmd_kind == KeyCmdKind.KEY_PRESS:
+            return '+'
+        elif key_cmd_kind == KeyCmdKind.KEY_RELEASE:
+            return '-'
+        elif key_cmd_kind == KeyCmdKind.KEY_SEND:
+            return '*'
+        else:
+            return ''
+
+
+class TextToKeyCodeConverter:
+
+    def __init__(self, reaction_map: dict[ReactionName, _KeyReactionData]):
+        self._reaction_map = reaction_map
+
+    def convert_text(self, text: str) -> Iterator[KeyCmd]:
+        for char in text:
+            yield from self._convert_char(char)
+
+    def _convert_char(self, char: str) -> Iterator[KeyCmd]:
+        if char == '\n':
+            yield KeyCmd(kind=KeyCmdKind.KEY_SEND, key_code=KC.ENTER)
+            return
+
+        reaction_data = self._reaction_map.get(char)
+        if reaction_data is None:
+            return
+
+        if reaction_data.with_shift:
+            yield KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.LEFT_SHIFT)
+
+        if reaction_data.with_alt:
+            yield KeyCmd(kind=KeyCmdKind.KEY_PRESS, key_code=KC.RIGHT_ALT)
+
+        yield KeyCmd(kind=KeyCmdKind.KEY_SEND, key_code=reaction_data.key_code)
+
+        if reaction_data.with_alt:
+            yield KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.RIGHT_ALT)
+
+        if reaction_data.with_shift:
+            yield KeyCmd(kind=KeyCmdKind.KEY_RELEASE, key_code=KC.LEFT_SHIFT)
+
+
+class KeyCmdExecuter:
+
+    def __init__(self, kbd_device: Keyboard):
+        self._kbd_device = kbd_device
+
+    def execute(self, key_cmd: KeyCmd) -> None:
+        if key_cmd.kind == KeyCmdKind.KEY_PRESS:
+            self._kbd_device.press(key_cmd.key_code)
+        elif key_cmd.kind == KeyCmdKind.KEY_RELEASE:
+            self._kbd_device.release(key_cmd.key_code)
+        elif key_cmd.kind == KeyCmdKind.KEY_SEND:
+            self._kbd_device.send(key_cmd.key_code)
 
 
 if __name__ == '__main__':

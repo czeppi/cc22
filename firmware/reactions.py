@@ -9,6 +9,12 @@ class KeyCmdKind:  # enum
     KEY_SEND = 2
 
 
+class MouseButtonCmdKind:
+    MOUSE_RELEASE = 0
+    MOUSE_PRESS = 1
+    MOUSE_CLICK = 2
+
+
 KeyCmdKindValue = int
 
 
@@ -41,8 +47,9 @@ class KeyCmd(ReactionCmd):
 
 class MouseButtonCmd(ReactionCmd):
 
-    def __init__(self, button_no: int):
+    def __init__(self, button_no: int, kind: MouseButtonCmdKind):
         self.button_no = button_no
+        self.kind = kind
 
     def __str__(self) -> str:
         return f'mouse press({self.button_no})'
@@ -61,6 +68,12 @@ class MouseWheelCmd(ReactionCmd):
 
     def __eq__(self, other: ReactionCmd) -> bool:
         return isinstance(other, MouseWheelCmd) and self.offset == other.offset
+
+
+class LogCmd(ReactionCmd):
+
+    def __init__(self):
+        pass
 
 
 ReactionCommands = list  # list[ReactionCmd]
